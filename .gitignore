@@ -1,0 +1,30 @@
+# Game binaries and assets
+Bopl Battle/BoplBattle_Data/
+Bopl Battle/BoplBattle.exe
+Bopl Battle/UnityCrashHandler64.exe
+Bopl Battle/UnityPlayer.dll
+Bopl Battle/GameAssembly.dll
+Bopl Battle/steam_api64.dll
+
+# BepInEx framework (large, downloadable separately)
+Bopl Battle/BepInEx/core/
+Bopl Battle/BepInEx/cache/
+Bopl Battle/BepInEx/unity-libs/
+Bopl Battle/BepInEx/interop/
+Bopl Battle/BepInEx/patchers/
+Bopl Battle/doorstop_config.ini
+Bopl Battle/winhttp.dll
+Bopl Battle/changelog.txt
+Bopl Battle/mono/
+
+# Logs (generated at runtime)
+Bopl Battle/BepInEx/LogOutput.log
+
+# Keep: mod DLL and config
+# Bopl Battle/BepInEx/plugins/MorePlayers.dll  <-- tracked
+# Bopl Battle/BepInEx/config/                  <-- tracked
+
+# AnkerGames launcher stuff (not part of the mod)
+AnkerGames - Free Pre-installed PC Games.url
+Read Me.txt
+Run me!.bat
