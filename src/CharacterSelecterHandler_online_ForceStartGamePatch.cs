@@ -18,6 +18,10 @@ namespace MoreMultiPlayer
 
         public static bool Prefix(PlayerColors pcs)
         {
+            // ≤4 player games: no extended packet, let original ForceStartGame handle it
+            if (SteamManagerExtended.startParameters.nrOfPlayers == 0)
+                return true;
+
             var selfRef = AccessTools.StaticFieldRefAccess<CharacterSelectHandler_online, CharacterSelectHandler_online>("selfRef");
             if (pcs == null)
             {

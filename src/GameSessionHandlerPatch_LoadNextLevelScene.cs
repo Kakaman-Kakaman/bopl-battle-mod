@@ -1,28 +1,24 @@
-using System.Collections.Generic;
-using System.Reflection;
-using System.Reflection.Emit;
 using HarmonyLib;
 
 namespace MoreMultiPlayer
 {
+    // Sync our extended startParameters back into the game's StartRequestPacket before
+    // LoadNextLevelScene reads from it, so the game sees correct seed/level values.
     [HarmonyPatch(typeof(GameSessionHandler), "LoadNextLevelScene")]
     public static class GameSessionHandlerPatch_LoadNextLevelScene
     {
-        private static readonly FieldInfo fromFieldA =
-            AccessTools.Field(typeof(SteamManager), nameof(SteamManager.startParameters));
-
-        private static readonly FieldInfo fromFieldB =
-            AccessTools.Field(typeof(StartRequestPacket), nameof(StartRequestPacket.currentLevel));
-
-        private static readonly FieldInfo toFieldA =
-            AccessTools.Field(typeof(SteamManagerExtended), nameof(SteamManagerExtended.startParameters));
-
-        private static readonly FieldInfo toFieldB =
-            AccessTools.Field(typeof(MultiStartRequestPacket), nameof(MultiStartRequestPacket.currentLevel));
-
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        public static void Prefix()
         {
-            return Main.PatchFieldLoad(fromFieldA, fromFieldB, toFieldA, toFieldB, instructions);
+            if (SteamManagerExtended.startParameters.nrOfPlayers == 0) return;
+
+            // startParameters is a static field on SteamManager
+            var sp = SteamManager.startParameters;
+            sp.seed = (uint)SteamManagerExtended.startParameters.seed;
+            sp.currentLevel = SteamManagerExtended.startParameters.currentLevel;
+            sp.seqNum = (ushort)SteamManagerExtended.startParameters.seqNum;
+            sp.nrOfPlayers = SteamManagerExtended.startParameters.nrOfPlayers;
+            sp.frameBufferSize = SteamManagerExtended.startParameters.frameBufferSize;
+            SteamManager.startParameters = sp;
         }
     }
 }

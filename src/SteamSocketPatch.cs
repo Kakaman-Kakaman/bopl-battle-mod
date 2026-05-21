@@ -14,12 +14,9 @@ namespace MoreMultiPlayer
         {
             try
             {
+                // Let the original handle all non-multi-start packets
                 if (size < 24 || size == 67 || size == 83)
-                {
                     return true;
-                }
-
-                int expectedSize = NetworkToolsExtensions.GetMultiStartRequestSize(Constants.MAX_PLAYERS);
 
                 bool couldBeMultiStart = false;
                 for (int n = 2; n <= Constants.MAX_PLAYERS; n++)
@@ -32,27 +29,36 @@ namespace MoreMultiPlayer
                 }
 
                 if (!couldBeMultiStart)
-                {
                     return true;
-                }
 
                 byte[] buffer = new byte[size];
                 System.Runtime.InteropServices.Marshal.Copy(data, buffer, 0, size);
 
-                using (MemoryStream ms = new MemoryStream(buffer))
-                using (BinaryReader reader = new BinaryReader(ms))
+                MultiStartRequestPacket packet;
+                using (var ms = new MemoryStream(buffer))
+                using (var reader = new BinaryReader(ms))
                 {
-                    MultiStartRequestPacket packet = NetworkToolsExtensions.ReadMultiStartRequest(reader);
+                    packet = NetworkToolsExtensions.ReadMultiStartRequest(reader);
+                }
 
-                    if (packet.nrOfPlayers < 2 || packet.nrOfPlayers > Constants.MAX_PLAYERS)
-                    {
-                        return true;
-                    }
+                if (packet.nrOfPlayers < 2 || packet.nrOfPlayers > Constants.MAX_PLAYERS)
+                    return true;
 
-                    Main.Log.LogInfo(
-                        $"SteamSocketPatch: Received MultiStartRequestPacket from {identity.SteamId}, nrOfPlayers={packet.nrOfPlayers}");
+                Main.Log.LogInfo($"SteamSocketPatch: received MultiStartRequestPacket from {identity.SteamId}, nrOfPlayers={packet.nrOfPlayers}");
+                SteamManagerExtended.startParameters = packet;
 
-                    SteamManagerExtended.startParameters = packet;
+                // Original OnMessage would have called ForceStartGame after parsing.
+                // Since we return false (blocking original), call it ourselves.
+                // ForceStartGame and selfRef are static members on CharacterSelectHandler_online.
+                var csh = CharacterSelectHandler_online.selfRef;
+                if (csh != null)
+                {
+                    Main.Log.LogInfo("SteamSocketPatch: triggering ForceStartGame");
+                    CharacterSelectHandler_online.ForceStartGame(csh.playerColors);
+                }
+                else
+                {
+                    Main.Log.LogError("SteamSocketPatch: CharacterSelectHandler_online.selfRef is null, cannot start game");
                 }
 
                 return false;

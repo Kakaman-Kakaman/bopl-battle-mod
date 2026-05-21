@@ -1,10 +1,9 @@
 using System;
-using System.Collections.Generic;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using HarmonyLib;
 using Steamworks;
 using Steamworks.Data;
+using UnityEngine;
 
 namespace MoreMultiPlayer
 {
@@ -12,101 +11,90 @@ namespace MoreMultiPlayer
     {
         public static MultiStartRequestPacket startParameters;
 
-        private static SocketManager FindHostSocket()
+        internal static void SendToAll(byte[] data, SteamManager sm)
         {
-            if (SteamManager.instance == null) return null;
-            var flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
-            foreach (var field in typeof(SteamManager).GetFields(flags))
+            var players = sm.connectedPlayers;
+            if (players == null || players.Count == 0) return;
+
+            var handle = GCHandle.Alloc(data, GCHandleType.Pinned);
+            try
             {
-                try
+                var ptr = handle.AddrOfPinnedObject();
+                foreach (var sc in players)
                 {
-                    var val = field.IsStatic ? field.GetValue(null) : field.GetValue(SteamManager.instance);
-                    if (val is SocketManager mgr) return mgr;
+                    try { sc.Connection.SendMessage(ptr, data.Length); }
+                    catch (Exception ex) { Main.Log.LogError($"SendToAll: error sending to {sc.steamName}: {ex.Message}"); }
                 }
-                catch { }
             }
-            return null;
+            finally { handle.Free(); }
         }
 
-        private static void SendToAll(byte[] data)
+        private static MultiStartRequestPacket BuildPacket(SteamManager sm, PlayerInit hostPlayer, byte currentLevel)
         {
-            var socket = FindHostSocket();
-            if (socket == null)
+            var connected = sm.connectedPlayers;
+            int n = connected.Count + 1; // +1 for host
+
+            var packet = new MultiStartRequestPacket();
+            packet.seqNum = sm.nextStartGameSeq;
+            sm.nextStartGameSeq++;
+            packet.seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+            packet.nrOfPlayers = (byte)n;
+            packet.nrOfAbilites = 3;
+            packet.currentLevel = currentLevel;
+            packet.frameBufferSize = (byte)sm.startFrameBuffer;
+            packet.isDemoMask = 0;
+            packet.p_ids     = new ulong[n];
+            packet.p_colors  = new byte[n];
+            packet.p_teams   = new byte[n];
+            packet.p_ability1s = new byte[n];
+            packet.p_ability2s = new byte[n];
+            packet.p_ability3s = new byte[n];
+
+            // Host at index 0
+            packet.p_ids[0]     = SteamClient.SteamId;
+            packet.p_colors[0]  = (byte)hostPlayer.color;
+            packet.p_teams[0]   = (byte)hostPlayer.team;
+            packet.p_ability1s[0] = (byte)hostPlayer.ability0;
+            packet.p_ability2s[0] = (byte)hostPlayer.ability1;
+            packet.p_ability3s[0] = (byte)hostPlayer.ability2;
+
+            // Clients at indices 1..n
+            for (int i = 0; i < connected.Count; i++)
             {
-                Main.Log.LogError("SendToAll: could not find host SocketManager");
-                return;
+                var sc = connected[i];
+                packet.p_ids[i + 1]     = sc.id;
+                packet.p_colors[i + 1]  = (byte)sc.lobby_color;
+                packet.p_teams[i + 1]   = sc.lobby_team;
+                packet.p_ability1s[i + 1] = sc.lobby_ability1;
+                packet.p_ability2s[i + 1] = sc.lobby_ability2;
+                packet.p_ability3s[i + 1] = sc.lobby_ability3;
+                if (!sc.ownsFullGame) packet.isDemoMask |= 1UL << (i + 1);
             }
-            // socket.Connected only contains CLIENT connections; host is not in the list
-            foreach (var conn in socket.Connected)
-            {
-                var handle = GCHandle.Alloc(data, GCHandleType.Pinned);
-                try
-                {
-                    conn.SendMessage(handle.AddrOfPinnedObject(), data.Length);
-                }
-                catch (Exception ex)
-                {
-                    Main.Log.LogError($"SendToAll: error sending: {ex.Message}");
-                }
-                finally
-                {
-                    handle.Free();
-                }
-            }
+
+            return packet;
         }
 
         [HarmonyPatch(typeof(SteamManager), "HostGame")]
         public static class SteamManager_HostGame_Patch
         {
-            public static bool Prefix(SteamManager __instance, int seed, byte[] p_colors, byte[] p_teams,
-                byte[] p_ability1s, byte[] p_ability2s, byte[] p_ability3s, byte nrOfAbilities,
-                List<SteamId> connectedPlayers, byte frameBufferSize, bool[] isDemoArr, int seqNum, byte currentLevel)
+            public static bool Prefix(SteamManager __instance, PlayerInit hostPlayer)
             {
+                // Only intercept for 5+ total players; ≤4 is handled by original
+                if (__instance.connectedPlayers.Count < 4) return true;
+
                 try
                 {
-                    byte nrOfPlayers = (byte)connectedPlayers.Count;
-
-                    MultiStartRequestPacket packet = new MultiStartRequestPacket();
-                    packet.seqNum = seqNum;
-                    packet.seed = seed;
-                    packet.nrOfPlayers = nrOfPlayers;
-                    packet.nrOfAbilites = nrOfAbilities;
-                    packet.currentLevel = currentLevel;
-                    packet.frameBufferSize = frameBufferSize;
-
-                    ulong isDemoMask = 0;
-                    for (int i = 0; i < isDemoArr.Length && i < 64; i++)
-                        if (isDemoArr[i]) isDemoMask |= 1UL << i;
-                    packet.isDemoMask = isDemoMask;
-
-                    packet.p_ids = new ulong[nrOfPlayers];
-                    packet.p_colors = new byte[nrOfPlayers];
-                    packet.p_teams = new byte[nrOfPlayers];
-                    packet.p_ability1s = new byte[nrOfPlayers];
-                    packet.p_ability2s = new byte[nrOfPlayers];
-                    packet.p_ability3s = new byte[nrOfPlayers];
-
-                    for (int i = 0; i < nrOfPlayers; i++)
-                    {
-                        packet.p_ids[i] = connectedPlayers[i];
-                        packet.p_colors[i] = p_colors[i];
-                        packet.p_teams[i] = p_teams[i];
-                        packet.p_ability1s[i] = p_ability1s[i];
-                        packet.p_ability2s[i] = p_ability2s[i];
-                        packet.p_ability3s[i] = p_ability3s[i];
-                    }
-
+                    var packet = BuildPacket(__instance, hostPlayer, 0);
                     startParameters = packet;
-
                     var encoded = NetworkToolsExtensions.EncodeMultiStartRequest(packet);
-                    Main.Log.LogInfo($"HostGame: sending MultiStartRequestPacket, nrOfPlayers={nrOfPlayers}, size={encoded.Length}");
-
-                    SendToAll(encoded);
+                    Main.Log.LogInfo($"HostGame: sending MultiStartRequestPacket nrOfPlayers={packet.nrOfPlayers} size={encoded.Length}");
+                    SendToAll(encoded, __instance);
+                    __instance.StartHostedGame();
                     return false;
                 }
                 catch (Exception ex)
                 {
-                    Main.Log.LogError($"SteamManager_HostGame_Patch error: {ex}");
+                    Main.Log.LogError($"HostGame patch error: {ex}");
                     return true;
                 }
             }
@@ -115,13 +103,31 @@ namespace MoreMultiPlayer
         [HarmonyPatch(typeof(SteamManager), "HostNextLevel")]
         public static class SteamManager_HostNextLevel_Patch
         {
-            public static bool Prefix(SteamManager __instance, int seed, byte[] p_colors, byte[] p_teams,
-                byte[] p_ability1s, byte[] p_ability2s, byte[] p_ability3s, byte nrOfAbilities,
-                List<SteamId> connectedPlayers, byte frameBufferSize, bool[] isDemoArr, int seqNum, byte currentLevel)
+            public static bool Prefix(SteamManager __instance, Player hostPlayer, NamedSpriteList abilityIcons)
             {
-                return SteamManager_HostGame_Patch.Prefix(__instance, seed, p_colors, p_teams, p_ability1s,
-                    p_ability2s, p_ability3s, nrOfAbilities, connectedPlayers, frameBufferSize, isDemoArr, seqNum,
-                    currentLevel);
+                // Only intercept if we have an active extended-player game
+                if (startParameters.nrOfPlayers == 0) return true;
+
+                try
+                {
+                    var packet = startParameters;
+                    packet.seqNum = __instance.nextStartGameSeq;
+                    __instance.nextStartGameSeq++;
+                    packet.seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+                    packet.currentLevel = (byte)(packet.currentLevel + 1);
+                    startParameters = packet;
+
+                    var encoded = NetworkToolsExtensions.EncodeMultiStartRequest(packet);
+                    Main.Log.LogInfo($"HostNextLevel: sending MultiStartRequestPacket nrOfPlayers={packet.nrOfPlayers} level={packet.currentLevel}");
+                    SendToAll(encoded, __instance);
+                    __instance.StartHostedGame();
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    Main.Log.LogError($"HostNextLevel patch error: {ex}");
+                    return true;
+                }
             }
         }
 
