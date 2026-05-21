@@ -1,0 +1,82 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>MorePlayers</AssemblyName>
+    <RootNamespace>MoreMultiPlayer</RootNamespace>
+    <Nullable>disable</Nullable>
+    <LangVersion>9</LangVersion>
+    <!-- Default to local game path; override with: dotnet build /p:GameDir="C:\..." -->
+    <GameDir Condition="'$(GameDir)' == ''">I:\Bopl-Battle-AnkerGames\Bopl Battle\BoplBattle_Data\Managed</GameDir>
+    <BepInExDir Condition="'$(BepInExDir)' == ''">I:\Bopl-Battle-AnkerGames\Bopl Battle\BepInEx</BepInExDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Auto-publicize Assembly-CSharp so internal/private members are accessible -->
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- BepInEx core (local installation) -->
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExDir)\core\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExDir)\core\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Publicized game assembly (auto-publicized via MSBuild package) -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GameDir)\Assembly-CSharp.dll</HintPath>
+      <Publicize>true</Publicize>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Unity engine modules -->
+    <Reference Include="UnityEngine">
+      <HintPath>$(GameDir)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(GameDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(GameDir)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(GameDir)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.SceneManagementModule">
+      <HintPath>$(GameDir)\UnityEngine.SceneManagementModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(GameDir)\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(GameDir)\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(GameDir)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$(GameDir)\Unity.InputSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Steam networking -->
+    <Reference Include="Facepunch.Steamworks.Win64">
+      <HintPath>$(GameDir)\Facepunch.Steamworks.Win64.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

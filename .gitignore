@@ -24,6 +24,10 @@ Bopl Battle/BepInEx/LogOutput.log
 # Bopl Battle/BepInEx/plugins/MorePlayers.dll  <-- tracked
 # Bopl Battle/BepInEx/config/                  <-- tracked
 
+# Build artifacts
+src/bin/
+src/obj/
+
 # AnkerGames launcher stuff (not part of the mod)
 AnkerGames - Free Pre-installed PC Games.url
 Read Me.txt
